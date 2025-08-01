@@ -1,6 +1,2 @@
-buildFilter:
-  paths:
-    - src/api/**
-    - requirements.txt
-    - pyproject.toml
-    - .render-build-filter.yaml
+buildCommand: ""
+startCommand: "uvicorn src.api.main:app --host=0.0.0.0 --port=10000"
