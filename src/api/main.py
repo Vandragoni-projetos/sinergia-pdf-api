@@ -1,4 +1,7 @@
 # Para rodar online: uvicorn main:app --host 0.0.0.0 --port 8000
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from fastapi import FastAPI, File, UploadFile, Form
 from fastapi.responses import StreamingResponse
