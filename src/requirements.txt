@@ -1,7 +1,0 @@
-fastapi
-uvicorn
-fpdf
-Pillow
-PyPDF2
-qrcode
-python-multipart
