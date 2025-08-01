@@ -1,0 +1,6 @@
+buildFilter:
+  paths:
+    - src/api/**
+    - requirements.txt
+    - pyproject.toml
+    - .render-build-filter.yaml
