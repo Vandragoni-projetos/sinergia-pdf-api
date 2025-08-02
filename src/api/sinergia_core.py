@@ -19,9 +19,12 @@ def gerar_pdf(
     pdf = FPDF(orientation='P', unit='mm', format=page_format)
 
     for i, img_path in enumerate(image_paths):
+        if not os.path.exists(img_path):
+            raise FileNotFoundError(f"Imagem não encontrada: {img_path}")
+
         pdf.add_page()
 
-        # Cabeçalho (opcional)
+        # Cabeçalho
         if header_text:
             try:
                 pdf.set_font(header_font, size=header_size)
@@ -29,7 +32,7 @@ def gerar_pdf(
                 pdf.set_font("Arial", size=header_size)
             pdf.cell(0, 10, header_text, ln=True, align="C")
 
-        # Imagem central
+        # Imagem
         with open(img_path, 'rb') as f:
             img = Image.open(f)
             img = img.convert('RGB')
@@ -40,7 +43,7 @@ def gerar_pdf(
             y = (pdf.h - scaled_height) / 2
             pdf.image(img_path, x=x, y=y, w=max_width)
 
-        # Rodapé (opcional)
+        # Rodapé
         if footer_text:
             pdf.set_y(-15)
             try:
@@ -49,7 +52,7 @@ def gerar_pdf(
                 pdf.set_font("Arial", size=footer_size)
             pdf.cell(0, 10, footer_text, 0, 0, "C")
 
-        # Numeração de página (opcional)
+        # Número da página
         if insert_page_marker:
             pdf.set_y(-8)
             pdf.set_font("Arial", size=8)
@@ -59,26 +62,22 @@ def gerar_pdf(
     pdf.output(output_path)
     return output_path
 
-
 def gerar_capa(image_path, filename):
+    if not os.path.exists(image_path):
+        raise FileNotFoundError("Imagem da capa não encontrada.")
+
     pdf = FPDF()
     pdf.add_page()
-
-    # Preenche a página toda com a imagem
-    pdf.image(image_path, x=0, y=0, w=210, h=297)  # A4 padrão
-
+    pdf.image(image_path, x=0, y=0, w=210, h=297)
     output_path = f"temp/capa_{filename.replace(' ', '_')}.pdf"
     pdf.output(output_path)
     return output_path
 
-
 def gerar_contracapa(link, filename):
-    # Geração do QR Code
     qr = qrcode.make(link)
     qr_path = f"temp/qr_{filename.replace(' ', '_')}.png"
     qr.save(qr_path)
 
-    # Inserção no PDF
     pdf = FPDF()
     pdf.add_page()
     pdf.image(qr_path, x=75, y=100, w=60, h=60)
@@ -86,7 +85,6 @@ def gerar_contracapa(link, filename):
     output_path = f"temp/contracapa_{filename.replace(' ', '_')}.pdf"
     pdf.output(output_path)
 
-    # Opcional: excluir imagem temporária do QR
     if os.path.exists(qr_path):
         os.remove(qr_path)
 

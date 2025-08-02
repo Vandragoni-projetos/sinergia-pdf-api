@@ -2,7 +2,7 @@ import requests
 import json
 
 # URL local da sua API
-url = "http://127.0.0.1:8000/gerar-pdf"
+url = "url = "https://sinergia-pdf-api.onrender.com/gerar-pdf"
 
 # Substitua pelos caminhos reais das imagens que deseja incluir
 files = [

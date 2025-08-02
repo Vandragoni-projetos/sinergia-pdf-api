@@ -1,22 +1,22 @@
-from fastapi import FastAPI, File, UploadFile, Form
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
-from typing import List, Optional
-from io import BytesIO
+from fastapi.responses import FileResponse
+from typing import List
 import os
-import tempfile
-
 from .sinergia_core import gerar_pdf
 
 app = FastAPI()
 
-# Permite acesso da interface local ou do Base44
+# Garante que a pasta 'temp' exista
+if not os.path.exists("temp"):
+    os.makedirs("temp")
+
+# Libera CORS para frontend local e Base44
 origins = [
     "http://localhost",
     "http://localhost:3000",
     "https://app--sinerg-ia-gerador-de-pdf-para-livr-eadd1938.base44.app"
 ]
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -27,48 +27,47 @@ app.add_middleware(
 
 @app.post("/gerar-pdf")
 async def criar_pdf(
-    files: List[UploadFile] = File(...),
-    filename: str = Form("meu_livro"),
-    page_format: str = Form("A4"),
-    header_text: Optional[str] = Form(None),
-    header_font: Optional[str] = Form("Arial"),
-    header_size: Optional[int] = Form(12),
-    footer_text: Optional[str] = Form(None),
-    footer_font: Optional[str] = Form("Arial"),
-    footer_size: Optional[int] = Form(10),
-    insert_page_marker: Optional[bool] = Form(False),
-    fill_full_page: Optional[bool] = Form(False),
+    arquivos: List[UploadFile] = File(...),
+    nome_arquivo: str = Form(...),
+    formato_pagina: str = Form(...),
+    header_texto: str = Form(""),
+    header_fonte: str = Form("Arial"),
+    header_tamanho: int = Form(12),
+    footer_texto: str = Form(""),
+    footer_fonte: str = Form("Arial"),
+    footer_tamanho: int = Form(12),
+    mostrar_paginador: bool = Form(False),
+    preencher_tela: bool = Form(False),
 ):
-    # Cria diretório temporário para armazenar arquivos
-    with tempfile.TemporaryDirectory() as temp_dir:
-        filepaths = []
+    try:
+        # Salva os arquivos enviados
+        caminhos = []
+        for arquivo in arquivos:
+            caminho_temp = os.path.join("temp", arquivo.filename)
+            with open(caminho_temp, "wb") as buffer:
+                buffer.write(await arquivo.read())
+            caminhos.append(caminho_temp)
 
-        for file in files:
-            temp_path = os.path.join(temp_dir, file.filename)
-            with open(temp_path, "wb") as f:
-                f.write(await file.read())
-            filepaths.append(temp_path)
-
-        # Gera PDF
-        pdf_path = os.path.join(temp_dir, f"{filename}.pdf")
-
-        gerar_pdf(
-            imagens=filepaths,
-            saida=pdf_path,
-            formato_pagina=page_format,
-            cabecalho_texto=header_text,
-            cabecalho_fonte=header_font,
-            cabecalho_tamanho=header_size,
-            rodape_texto=footer_text,
-            rodape_fonte=footer_font,
-            rodape_tamanho=footer_size,
-            incluir_numeracao=insert_page_marker,
-            preencher_total=fill_full_page
+        # Gera o PDF
+        caminho_pdf = gerar_pdf(
+            image_paths=caminhos,
+            filename=nome_arquivo,
+            page_format=formato_pagina,
+            header_text=header_texto,
+            header_font=header_fonte,
+            header_size=header_tamanho,
+            footer_text=footer_texto,
+            footer_font=footer_fonte,
+            footer_size=footer_tamanho,
+            insert_page_marker=mostrar_paginador,
+            fill_full_page=preencher_tela
         )
 
-        # Retorna o PDF gerado como streaming + download automático
-        pdf_file = open(pdf_path, "rb")
-        headers = {
-            "Content-Disposition": f"attachment; filename={filename}.pdf"
-        }
-        return StreamingResponse(pdf_file, media_type="application/pdf", headers=headers)
+        return FileResponse(
+            path=caminho_pdf,
+            filename=os.path.basename(caminho_pdf),
+            media_type="application/pdf"
+        )
+    except Exception as e:
+        print(f"[ERRO AO GERAR PDF]: {e}")
+        raise HTTPException(status_code=500, detail="Erro interno ao gerar PDF")
