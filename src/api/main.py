@@ -1,71 +1,56 @@
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
-from typing import List
+from fpdf import FPDF
+from PIL import Image
 import os
-from .sinergia_core import gerar_pdf
+import qrcode
 
-app = FastAPI()
-
-# Garante que a pasta 'temp' exista
-if not os.path.exists("temp"):
-    os.makedirs("temp")
-
-# Libera CORS para frontend local e Base44
-origins = [
-    "http://localhost",
-    "http://localhost:3000",
-    "https://app--sinerg-ia-gerador-de-pdf-para-livr-eadd1938.base44.app"
-]
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-@app.post("/gerar-pdf")
-async def criar_pdf(
-    files: List[UploadFile] = File(...),
-    filename: str = Form(...),
-    page_format: str = Form(...),
-    header_text: str = Form(""),
-    header_font: str = Form("Arial"),
-    header_size: int = Form(12),
-    footer_text: str = Form(""),
-    footer_font: str = Form("Arial"),
-    footer_size: int = Form(12),
-    insert_page_marker: bool = Form(False),
-    fill_full_page: bool = Form(False),
+def gerar_pdf(
+    imagens,
+    filename,
+    page_format,
+    header_text,
+    header_font,
+    header_size,
+    footer_text,
+    footer_font,
+    footer_size,
+    insert_page_marker,
+    fill_full_page
 ):
-    try:
-        caminhos = []
-        for file in files:
-            caminho_temp = os.path.join("temp", file.filename)
-            with open(caminho_temp, "wb") as buffer:
-                buffer.write(await file.read())
-            caminhos.append(caminho_temp)
+    pdf = FPDF(orientation='P', unit='mm', format=page_format)
 
-        caminho_pdf = gerar_pdf(
-            image_paths=caminhos,
-            filename=filename,
-            page_format=page_format,
-            header_text=header_text,
-            header_font=header_font,
-            header_size=header_size,
-            footer_text=footer_text,
-            footer_font=footer_font,
-            footer_size=footer_size,
-            insert_page_marker=insert_page_marker,
-            fill_full_page=fill_full_page
-        )
+    for i, img_path in enumerate(imagens):
+        pdf.add_page()
 
-        return FileResponse(
-            path=caminho_pdf,
-            filename=os.path.basename(caminho_pdf),
-            media_type="application/pdf"
-        )
-    except Exception as e:
-        print(f"[ERRO AO GERAR PDF]: {e}")
-        raise HTTPException(status_code=500, detail="Erro interno ao gerar PDF")
+        if header_text:
+            try:
+                pdf.set_font(header_font, size=header_size)
+            except:
+                pdf.set_font("Arial", size=header_size)
+            pdf.cell(0, 10, header_text, ln=True, align="C")
+
+        with open(img_path, 'rb') as f:
+            img = Image.open(f)
+            img = img.convert('RGB')
+            img_w, img_h = img.size
+            max_width = pdf.w - 20 if fill_full_page else pdf.w - 40
+            scaled_height = max_width * img_h / img_w
+            x = (pdf.w - max_width) / 2
+            y = (pdf.h - scaled_height) / 2
+            pdf.image(img_path, x=x, y=y, w=max_width)
+
+        if footer_text:
+            pdf.set_y(-15)
+            try:
+                pdf.set_font(footer_font, size=footer_size)
+            except:
+                pdf.set_font("Arial", size=footer_size)
+            pdf.cell(0, 10, footer_text, 0, 0, "C")
+
+        if insert_page_marker:
+            pdf.set_y(-8)
+            pdf.set_font("Arial", size=8)
+            pdf.cell(0, 10, f"Página {i+1}", 0, 0, "R")
+
+    output_path = f"temp/{filename.replace(' ', '_')}.pdf"
+    pdf.output(output_path)
+    return output_path
