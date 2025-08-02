@@ -1,4 +1,4 @@
-# Para rodar online: uvicorn main:app --host 0.0.0.0 --port 8000
+# Para rodar online: uvicorn api.main:app --host 0.0.0.0 --port 10000
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -8,7 +8,7 @@ from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 import shutil, os, logging
 from datetime import datetime
-from sinergia_core import gerar_pdf, gerar_capa, gerar_contracapa
+from .sinergia_core import gerar_pdf, gerar_capa, gerar_contracapa
 
 # Criação de pastas necessárias
 os.makedirs("logs", exist_ok=True)
