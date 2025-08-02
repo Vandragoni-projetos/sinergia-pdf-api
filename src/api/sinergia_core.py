@@ -31,14 +31,14 @@ def gerar_pdf(
 
         # Imagem central
         with open(img_path, 'rb') as f:
-        img = Image.open(f)
-        img = img.convert('RGB')
-        img_w, img_h = img.size
-        max_width = pdf.w - 20 if fill_full_page else pdf.w - 40
-        scaled_height = max_width * img_h / img_w
-        x = (pdf.w - max_width) / 2
-        y = (pdf.h - scaled_height) / 2
-        pdf.image(img_path, x=x, y=y, w=max_width)
+            img = Image.open(f)
+            img = img.convert('RGB')
+            img_w, img_h = img.size
+            max_width = pdf.w - 20 if fill_full_page else pdf.w - 40
+            scaled_height = max_width * img_h / img_w
+            x = (pdf.w - max_width) / 2
+            y = (pdf.h - scaled_height) / 2
+            pdf.image(img_path, x=x, y=y, w=max_width)
 
         # Rodapé (opcional)
         if footer_text:
