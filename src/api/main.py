@@ -1,56 +1,58 @@
-from fpdf import FPDF
-from PIL import Image
+# main.py
+
+from fastapi import FastAPI, UploadFile, File, Form
+from fastapi.responses import FileResponse
+from typing import List
 import os
-import qrcode
+from .sinergia_core import gerar_pdf  # ajustado para import local
 
-def gerar_pdf(
-    imagens,
-    filename,
-    page_format,
-    header_text,
-    header_font,
-    header_size,
-    footer_text,
-    footer_font,
-    footer_size,
-    insert_page_marker,
-    fill_full_page
+app = FastAPI()
+
+@app.post("/gerar-pdf")
+async def criar_pdf(
+    titulo: str = Form(...),
+    subtitulo: str = Form(...),
+    incluir_logo: bool = Form(...),
+    incluir_numeracao: bool = Form(...),
+    tamanho_pagina: str = Form(...),
+    margem: int = Form(...),
+    imagem_capa: UploadFile = File(...),
+    imagem_contracapa: UploadFile = File(...),
+    imagens: List[UploadFile] = File(...)
 ):
-    pdf = FPDF(orientation='P', unit='mm', format=page_format)
+    # Criação de diretório temporário
+    pasta_temporaria = "temp_uploads"
+    os.makedirs(pasta_temporaria, exist_ok=True)
 
-    for i, img_path in enumerate(imagens):
-        pdf.add_page()
+    def salvar_arquivo(upload: UploadFile, nome: str) -> str:
+        caminho = os.path.join(pasta_temporaria, nome)
+        with open(caminho, "wb") as f:
+            f.write(await upload.read())
+        return caminho
 
-        if header_text:
-            try:
-                pdf.set_font(header_font, size=header_size)
-            except:
-                pdf.set_font("Arial", size=header_size)
-            pdf.cell(0, 10, header_text, ln=True, align="C")
+    # Salvar arquivos
+    path_capa = await salvar_arquivo(imagem_capa, "capa.png")
+    path_contracapa = await salvar_arquivo(imagem_contracapa, "contracapa.png")
+    paths_imagens = []
+    for i, img in enumerate(imagens):
+        path = await salvar_arquivo(img, f"img_{i}.png")
+        paths_imagens.append(path)
 
-        with open(img_path, 'rb') as f:
-            img = Image.open(f)
-            img = img.convert('RGB')
-            img_w, img_h = img.size
-            max_width = pdf.w - 20 if fill_full_page else pdf.w - 40
-            scaled_height = max_width * img_h / img_w
-            x = (pdf.w - max_width) / 2
-            y = (pdf.h - scaled_height) / 2
-            pdf.image(img_path, x=x, y=y, w=max_width)
+    # Caminho final do PDF
+    caminho_pdf_final = "saida_final.pdf"
 
-        if footer_text:
-            pdf.set_y(-15)
-            try:
-                pdf.set_font(footer_font, size=footer_size)
-            except:
-                pdf.set_font("Arial", size=footer_size)
-            pdf.cell(0, 10, footer_text, 0, 0, "C")
+    # Chamar função principal
+    gerar_pdf(
+        titulo=titulo,
+        subtitulo=subtitulo,
+        incluir_logo=incluir_logo,
+        incluir_numeracao=incluir_numeracao,
+        tamanho_pagina=tamanho_pagina,
+        margem=margem,
+        capa_path=path_capa,
+        contracapa_path=path_contracapa,
+        imagens=paths_imagens,
+        caminho_saida=caminho_pdf_final
+    )
 
-        if insert_page_marker:
-            pdf.set_y(-8)
-            pdf.set_font("Arial", size=8)
-            pdf.cell(0, 10, f"Página {i+1}", 0, 0, "R")
-
-    output_path = f"temp/{filename.replace(' ', '_')}.pdf"
-    pdf.output(output_path)
-    return output_path
+    return FileResponse(caminho_pdf_final, filename="livro_colorir.pdf", media_type="application/pdf")
