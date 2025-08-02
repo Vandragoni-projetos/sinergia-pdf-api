@@ -27,40 +27,38 @@ app.add_middleware(
 
 @app.post("/gerar-pdf")
 async def criar_pdf(
-    arquivos: List[UploadFile] = File(...),
-    nome_arquivo: str = Form(...),
-    formato_pagina: str = Form(...),
-    header_texto: str = Form(""),
-    header_fonte: str = Form("Arial"),
-    header_tamanho: int = Form(12),
-    footer_texto: str = Form(""),
-    footer_fonte: str = Form("Arial"),
-    footer_tamanho: int = Form(12),
-    mostrar_paginador: bool = Form(False),
-    preencher_tela: bool = Form(False),
+    files: List[UploadFile] = File(...),
+    filename: str = Form(...),
+    page_format: str = Form(...),
+    header_text: str = Form(""),
+    header_font: str = Form("Arial"),
+    header_size: int = Form(12),
+    footer_text: str = Form(""),
+    footer_font: str = Form("Arial"),
+    footer_size: int = Form(12),
+    insert_page_marker: bool = Form(False),
+    fill_full_page: bool = Form(False),
 ):
     try:
-        # Salva os arquivos enviados
         caminhos = []
-        for arquivo in arquivos:
-            caminho_temp = os.path.join("temp", arquivo.filename)
+        for file in files:
+            caminho_temp = os.path.join("temp", file.filename)
             with open(caminho_temp, "wb") as buffer:
-                buffer.write(await arquivo.read())
+                buffer.write(await file.read())
             caminhos.append(caminho_temp)
 
-        # Gera o PDF
         caminho_pdf = gerar_pdf(
             image_paths=caminhos,
-            filename=nome_arquivo,
-            page_format=formato_pagina,
-            header_text=header_texto,
-            header_font=header_fonte,
-            header_size=header_tamanho,
-            footer_text=footer_texto,
-            footer_font=footer_fonte,
-            footer_size=footer_tamanho,
-            insert_page_marker=mostrar_paginador,
-            fill_full_page=preencher_tela
+            filename=filename,
+            page_format=page_format,
+            header_text=header_text,
+            header_font=header_font,
+            header_size=header_size,
+            footer_text=footer_text,
+            footer_font=footer_font,
+            footer_size=footer_size,
+            insert_page_marker=insert_page_marker,
+            fill_full_page=fill_full_page
         )
 
         return FileResponse(
