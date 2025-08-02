@@ -63,6 +63,6 @@ async def gerar_pdf_endpoint(
                 os.remove(path)
 
 # Endpoint de saúde/simples
-@app.get("/")
+@app.get("/health")
 def health():
     return {"status": "ok"}
