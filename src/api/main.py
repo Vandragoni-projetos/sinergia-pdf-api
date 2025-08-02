@@ -1,58 +1,68 @@
-# main.py
-
-from fastapi import FastAPI, UploadFile, File, Form
-from fastapi.responses import FileResponse
-from typing import List
+from fastapi import FastAPI, File, UploadFile, Form
+from fastapi.responses import StreamingResponse
+from fastapi.middleware.cors import CORSMiddleware
+from typing import List, Optional
+from .sinergia_core import gerar_pdf
 import os
-from .sinergia_core import gerar_pdf  # ajustado para import local
+import tempfile
 
 app = FastAPI()
 
+# Habilita CORS para testes locais e origem Base44
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://app--sinerg-ia-gerador-de-pdf-para-livr-eadd1938.base44.app",
+        "http://localhost",
+        "http://127.0.0.1",
+        "null"
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 @app.post("/gerar-pdf")
-async def criar_pdf(
-    titulo: str = Form(...),
-    subtitulo: str = Form(...),
-    incluir_logo: bool = Form(...),
-    incluir_numeracao: bool = Form(...),
-    tamanho_pagina: str = Form(...),
-    margem: int = Form(...),
-    imagem_capa: UploadFile = File(...),
-    imagem_contracapa: UploadFile = File(...),
-    imagens: List[UploadFile] = File(...)
+async def gerar_pdf_endpoint(
+    files: List[UploadFile] = File(...),
+    filename: str = Form("output"),
+    page_format: str = Form("A4"),
+    header_text: Optional[str] = Form(None),
+    header_font: Optional[str] = Form("Arial"),
+    header_size: Optional[int] = Form(12),
+    footer_text: Optional[str] = Form(None),
+    footer_font: Optional[str] = Form("Arial"),
+    footer_size: Optional[int] = Form(10),
+    insert_page_marker: Optional[bool] = Form(False),
+    fill_full_page: Optional[bool] = Form(False),
 ):
-    # Criação de diretório temporário
-    pasta_temporaria = "temp_uploads"
-    os.makedirs(pasta_temporaria, exist_ok=True)
+    # Salva arquivos recebidos em disco e pega os caminhos
+    temp_image_paths = []
+    try:
+        for file in files:
+            suffix = os.path.splitext(file.filename)[-1]
+            with tempfile.NamedTemporaryFile(delete=False, suffix=suffix, dir="temp") as tmp:
+                tmp.write(await file.read())
+                temp_image_paths.append(tmp.name)
 
-    def salvar_arquivo(upload: UploadFile, nome: str) -> str:
-        caminho = os.path.join(pasta_temporaria, nome)
-        with open(caminho, "wb") as f:
-            f.write(await upload.read())
-        return caminho
+        # Gera o PDF passando os caminhos das imagens
+        pdf_path = gerar_pdf(
+            temp_image_paths, filename, page_format, header_text,
+            header_font, header_size, footer_text, footer_font,
+            footer_size, insert_page_marker, fill_full_page
+        )
 
-    # Salvar arquivos
-    path_capa = await salvar_arquivo(imagem_capa, "capa.png")
-    path_contracapa = await salvar_arquivo(imagem_contracapa, "contracapa.png")
-    paths_imagens = []
-    for i, img in enumerate(imagens):
-        path = await salvar_arquivo(img, f"img_{i}.png")
-        paths_imagens.append(path)
+        # Retorna o PDF gerado como streaming
+        pdf_file = open(pdf_path, "rb")
+        return StreamingResponse(pdf_file, media_type="application/pdf")
 
-    # Caminho final do PDF
-    caminho_pdf_final = "saida_final.pdf"
+    finally:
+        # Limpa arquivos temporários
+        for path in temp_image_paths:
+            if os.path.exists(path):
+                os.remove(path)
 
-    # Chamar função principal
-    gerar_pdf(
-        titulo=titulo,
-        subtitulo=subtitulo,
-        incluir_logo=incluir_logo,
-        incluir_numeracao=incluir_numeracao,
-        tamanho_pagina=tamanho_pagina,
-        margem=margem,
-        capa_path=path_capa,
-        contracapa_path=path_contracapa,
-        imagens=paths_imagens,
-        caminho_saida=caminho_pdf_final
-    )
-
-    return FileResponse(caminho_pdf_final, filename="livro_colorir.pdf", media_type="application/pdf")
+# Endpoint de saúde/simples
+@app.get("/")
+def health():
+    return {"status": "ok"}
