@@ -1,31 +1,34 @@
 from fastapi import FastAPI, File, UploadFile, Form
-from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from typing import List, Optional
-from .sinergia_core import gerar_pdf
+from io import BytesIO
 import os
 import tempfile
 
+from .sinergia_core import gerar_pdf
+
 app = FastAPI()
 
-# Habilita CORS para testes locais e origem Base44
+# Permite acesso da interface local ou do Base44
+origins = [
+    "http://localhost",
+    "http://localhost:3000",
+    "https://app--sinerg-ia-gerador-de-pdf-para-livr-eadd1938.base44.app"
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://app--sinerg-ia-gerador-de-pdf-para-livr-eadd1938.base44.app",
-        "http://localhost",
-        "http://127.0.0.1",
-        "null"
-    ],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 @app.post("/gerar-pdf")
-async def gerar_pdf_endpoint(
+async def criar_pdf(
     files: List[UploadFile] = File(...),
-    filename: str = Form("output"),
+    filename: str = Form("meu_livro"),
     page_format: str = Form("A4"),
     header_text: Optional[str] = Form(None),
     header_font: Optional[str] = Form("Arial"),
@@ -36,33 +39,36 @@ async def gerar_pdf_endpoint(
     insert_page_marker: Optional[bool] = Form(False),
     fill_full_page: Optional[bool] = Form(False),
 ):
-    # Salva arquivos recebidos em disco e pega os caminhos
-    temp_image_paths = []
-    try:
-        for file in files:
-            suffix = os.path.splitext(file.filename)[-1]
-            with tempfile.NamedTemporaryFile(delete=False, suffix=suffix, dir="temp") as tmp:
-                tmp.write(await file.read())
-                temp_image_paths.append(tmp.name)
+    # Cria diretório temporário para armazenar arquivos
+    with tempfile.TemporaryDirectory() as temp_dir:
+        filepaths = []
 
-        # Gera o PDF passando os caminhos das imagens
-        pdf_path = gerar_pdf(
-            temp_image_paths, filename, page_format, header_text,
-            header_font, header_size, footer_text, footer_font,
-            footer_size, insert_page_marker, fill_full_page
+        for file in files:
+            temp_path = os.path.join(temp_dir, file.filename)
+            with open(temp_path, "wb") as f:
+                f.write(await file.read())
+            filepaths.append(temp_path)
+
+        # Gera PDF
+        pdf_path = os.path.join(temp_dir, f"{filename}.pdf")
+
+        gerar_pdf(
+            imagens=filepaths,
+            saida=pdf_path,
+            formato_pagina=page_format,
+            cabecalho_texto=header_text,
+            cabecalho_fonte=header_font,
+            cabecalho_tamanho=header_size,
+            rodape_texto=footer_text,
+            rodape_fonte=footer_font,
+            rodape_tamanho=footer_size,
+            incluir_numeracao=insert_page_marker,
+            preencher_total=fill_full_page
         )
 
-        # Retorna o PDF gerado como streaming
+        # Retorna o PDF gerado como streaming + download automático
         pdf_file = open(pdf_path, "rb")
-        return StreamingResponse(pdf_file, media_type="application/pdf")
-
-    finally:
-        # Limpa arquivos temporários
-        for path in temp_image_paths:
-            if os.path.exists(path):
-                os.remove(path)
-
-# Endpoint de saúde/simples
-@app.get("/")
-def health():
-    return {"status": "ok"}
+        headers = {
+            "Content-Disposition": f"attachment; filename={filename}.pdf"
+        }
+        return StreamingResponse(pdf_file, media_type="application/pdf", headers=headers)
